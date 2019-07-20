@@ -277,7 +277,8 @@ class FilterTest:
         # self.fig.canvas.draw()
 
     def animation_update(self):
-        updated_artists = self.updated_artists.copy()
+        #updated_artists = self.updated_artists.copy()
+        updated_artists = list(self.updated_artists)
 
         # if updated_artists:
         #    print("animation update")
