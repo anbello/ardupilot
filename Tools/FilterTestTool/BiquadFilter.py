@@ -123,9 +123,9 @@ class BiquadFilter:
 
             # why not the formula below? It prevents a division by 0 when bandwidth = 2*frequency
             octaves = np.log2(self._center_freq / (self._center_freq - self._bandwidth_hz / 2)) * 2
-            Q = np.sqrt(2 ** octaves) / (2 ** octaves - 1)
+            # Q = np.sqrt(2 ** octaves) / (2 ** octaves - 1)
 
-            # Q = self._center_freq / self._bandwidth_hz
+            Q = self._center_freq / self._bandwidth_hz
 
             alpha = sin_om / (2 * Q / A)
 
