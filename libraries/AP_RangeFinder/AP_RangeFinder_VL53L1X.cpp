@@ -549,6 +549,8 @@ void AP_RangeFinder_VL53L1X::update(void)
     WITH_SEMAPHORE(_sem);
     if (counter > 0) {
         state.distance_cm = sum_mm / (10*counter);
+        if (state.distance_cm < 5)
+            state.distance_cm = 5;
         state.last_reading_ms = AP_HAL::millis();
         update_status();
         sum_mm = 0;
