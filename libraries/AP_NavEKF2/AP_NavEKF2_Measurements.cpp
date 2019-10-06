@@ -875,7 +875,7 @@ void NavEKF2_core::writeExtNavData(const Vector3f &sensOffset, const Vector3f &p
 {
     // limit update rate to maximum allowed by sensor buffers and fusion process
     // don't try to write to buffer until the filter has been initialised
-    if ((timeStamp_ms - extNavMeasTime_ms) < 70) {
+    if ((timeStamp_ms - extNavMeasTime_ms) < 35) {
         return;
     } else {
         extNavMeasTime_ms = timeStamp_ms;
