@@ -31,6 +31,7 @@
 #include <AP_Math/AP_Math.h>
 #include <AP_InertialSensor/AP_InertialSensor.h>
 #include <Filter/LowPassFilter.h>
+#include <Filter/LowPassFilter2p.h>
 
 #define DEBUG_FFT   0
 
@@ -38,6 +39,13 @@
 class AP_GyroFFT
 {
 public:
+    enum NoisePeak {
+        CENTER = 0,
+        LOWER_SHOULDER = 1,
+        UPPER_SHOULDER = 2,
+        MAX_TRACKED_PEAKS = 3
+    };
+
     AP_GyroFFT();
 
     // Do not allow copies
@@ -46,10 +54,12 @@ public:
 
     void init(uint32_t target_looptime);
 
-    // cycle through the FFT steps - runs at 400Hz
+    // cycle through the FFT steps - runs in the FFT thread
     uint16_t update();
     // capture gyro values at the appropriate update rate - runs at fast loop rate
     void sample_gyros();
+    // push a full frame of gyro samples into the FFT engine - runs at 400Hz
+    void push_gyro_frame();
     // update calculated values of dynamic parameters - runs at 1Hz
     void update_parameters();
     // thread for processing gyro data via FFT
@@ -67,21 +77,24 @@ public:
     void set_analysis_enabled(bool enabled) { _analysis_enabled = enabled; };
 
     // detected peak frequency filtered at 1/3 the update rate
-    Vector3f get_noise_center_freq_hz() const { return _global_state._center_freq_hz_filtered; }
+    const Vector3f& get_noise_center_freq_hz() const { return get_noise_center_freq_hz(CENTER); }
+    const Vector3f& get_noise_center_freq_hz(NoisePeak peak) const { return _global_state._center_freq_hz_filtered[peak]; }
     // energy of the background noise at the detected center frequency
-    Vector3f get_noise_signal_to_noise_db() const { return _global_state._center_snr; }
+    const Vector3f& get_noise_signal_to_noise_db() const { return _global_state._center_snr; }
     // detected peak frequency weighted by energy
     float get_weighted_noise_center_freq_hz();
     // detected peak frequency
-    Vector3f get_raw_noise_center_freq_hz() const { return _global_state._center_freq_hz; }
+    const Vector3f& get_raw_noise_center_freq_hz() const { return _global_state._center_freq_hz; }
     // match between first and second harmonics
-    Vector3f get_raw_noise_harmonic_fit() const { return _global_state._harmonic_fit; }
+    const Vector3f& get_raw_noise_harmonic_fit() const { return _global_state._harmonic_fit; }
     // energy of the detected peak frequency
-    Vector3f get_center_freq_energy() const { return _global_state._center_freq_energy; }
+    const Vector3f& get_center_freq_energy() const { return get_center_freq_energy(CENTER); }
+    const Vector3f& get_center_freq_energy(NoisePeak peak) const { return _global_state._center_freq_energy_filtered[peak]; }
     // index of the FFT bin containing the detected peak frequency
-    Vector3<uint16_t> get_center_freq_bin() const { return _global_state._center_freq_bin; }
+    const Vector3<uint16_t>& get_center_freq_bin() const { return _global_state._center_freq_bin; }
     // detected peak bandwidth
-    Vector3f get_noise_center_bandwidth_hz() const { return _global_state._center_bandwidth_hz; };
+    const Vector3f& get_noise_center_bandwidth_hz() const { return get_noise_center_bandwidth_hz(CENTER); }
+    const Vector3f& get_noise_center_bandwidth_hz(NoisePeak peak) const { return _global_state._center_bandwidth_hz_filtered[peak]; };
     // weighted detected peak bandwidth
     float get_weighted_noise_center_bandwidth_hz();
     // log gyro fft messages
@@ -91,8 +104,18 @@ public:
     static AP_GyroFFT *get_singleton() { return _singleton; }
 
 private:
+    // thread-local accessors of filtered state
+    float& get_tl_noise_center_freq_hz(NoisePeak peak, uint8_t axis) { return _thread_state._center_freq_hz_filtered[peak][axis]; }
+    float& get_tl_center_freq_energy(NoisePeak peak, uint8_t axis) { return _thread_state._center_freq_energy_filtered[peak][axis]; }
+    float& get_tl_noise_center_bandwidth_hz(NoisePeak peak, uint8_t axis) { return _thread_state._center_bandwidth_hz_filtered[peak][axis]; };
+    // write single log mesages
+    void log_noise_peak(const char* name, NoisePeak peak);
     // calculate the peak noise frequency
     void calculate_noise(uint16_t max_bin);
+    // calculate noise peak frequency characteristics
+    bool calculate_filtered_noise(NoisePeak peak, float& weighted_peak_freq_hz, float& snr);
+    // detected peak frequency weighted by energy
+    float calculate_weighted_freq_hz(const Vector3f& energy, const Vector3f& freq);
     // update the estimation of the background noise energy
     void update_ref_energy(uint16_t max_bin);
     // test frequency detection for all of the allowable bins
@@ -110,22 +133,24 @@ private:
 
     // data accessible from the main thread protected by the semaphore
     struct EngineState {
-        // energy of the detected peak frequency
-        Vector3f _center_freq_energy;
         // energy of the detected peak frequency in dB
         Vector3f _center_freq_energy_db;
         // detected peak frequency
         Vector3f _center_freq_hz;
         // fit between first and second harmonics
         Vector3f _harmonic_fit;
-        // bin of detected poeak frequency
+        // fit between first and second harmonics
+        Vector3f _harmonic_energy_ratio;
+        // bin of detected peak frequency
         Vector3<uint16_t> _center_freq_bin;
-        // filtered version of the peak frequency
-        Vector3f _center_freq_hz_filtered;
         // signal to noise ratio of PSD at the detected centre frequency
         Vector3f _center_snr;
-        // detected peak width
-        Vector3f _center_bandwidth_hz;
+        // filtered version of the peak frequency
+        Vector3f _center_freq_hz_filtered[MAX_TRACKED_PEAKS];
+        // filtered energy of the detected peak frequency
+        Vector3f _center_freq_energy_filtered[MAX_TRACKED_PEAKS];
+        // filtered detected peak width
+        Vector3f _center_bandwidth_hz_filtered[MAX_TRACKED_PEAKS];
         // axes that still require noise calibration
         uint8_t _noise_needs_calibration : 3;
         // whether the analyzer is mid-cycle
@@ -153,14 +178,16 @@ private:
         float _attenuation_cutoff;
         // SNR Threshold
         float _snr_threshold_db;
+        // harmonic Threshold
+        float _harmonic_threshold_db;
     } _config;
 
     // number of sampeles needed before a new frame can be processed
     uint16_t _samples_per_frame;
     // downsampled gyro data circular buffer index frequency analysis
-    uint16_t _circular_buffer_idx;
+    uint16_t _circular_buffer_idx[XYZ_AXIS_COUNT];
     // number of collected unprocessed gyro samples
-    uint16_t _sample_count;
+    uint16_t _sample_count[XYZ_AXIS_COUNT];
 
     // downsampled gyro data circular buffer for frequency analysis
     float* _downsampled_gyro_data[XYZ_AXIS_COUNT];
@@ -185,18 +212,24 @@ private:
     uint8_t _current_sample_mode : 3;
     // harmonic multiplier for two highest peaks
     float _harmonic_multiplier;
-    // searched harmonics - inferred from harmonic notch harmoncis
+    // searched harmonics - inferred from harmonic notch harmonics
     uint8_t _harmonics;
 
     // smoothing filter on the output
-    LowPassFilterFloat _center_freq_filter[XYZ_AXIS_COUNT];
+    LowPassFilterFloat _center_freq_filter[XYZ_AXIS_COUNT][MAX_TRACKED_PEAKS];
+    // smoothing filter on the energy
+    LowPassFilterFloat _center_freq_energy_filter[XYZ_AXIS_COUNT][MAX_TRACKED_PEAKS];
     // smoothing filter on the bandwidth
-    LowPassFilterFloat _center_bandwidth_filter[XYZ_AXIS_COUNT];
+    LowPassFilterFloat _center_bandwidth_filter[XYZ_AXIS_COUNT][MAX_TRACKED_PEAKS];
+    // smoothing filter on the frequency fit
+    LowPassFilterFloat _harmonic_fit_filter[XYZ_AXIS_COUNT];
+    // smoothing filter on the energy fit
+    LowPassFilter2pFloat _harmonic_ratio_filter[XYZ_AXIS_COUNT];
 
     // configured sampling rate
     uint16_t _fft_sampling_rate_hz;
     // number of cycles without a detected signal
-    uint8_t _missed_cycles;
+    uint8_t _missed_cycles[XYZ_AXIS_COUNT][MAX_TRACKED_PEAKS];
     // whether the analyzer initialized correctly
     bool _initialized;
 
@@ -226,6 +259,10 @@ private:
     AP_Float _attenuation_power_db;
     // learned peak bandwidth at configured attenuation at hover
     AP_Float _bandwidth_hover_hz;
+    // harmonic threshold
+    AP_Float _harmonic_threshold_db;
+    // harmonic fit percentage
+    AP_Int8 _harmonic_fit;
     AP_InertialSensor* _ins;
 #if DEBUG_FFT
     uint32_t _last_output_ms;
