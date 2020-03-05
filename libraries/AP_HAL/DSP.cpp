@@ -28,10 +28,11 @@ extern const AP_HAL::HAL &hal;
 #define SQRT_2_3 0.816496580927726f
 #define SQRT_6   2.449489742783178f
 
-DSP::FFTWindowState::FFTWindowState(uint16_t window_size, uint16_t sample_rate)
+DSP::FFTWindowState::FFTWindowState(uint16_t window_size, uint16_t sample_rate, uint8_t harmonics)
     : _window_size(window_size),
     _bin_count(window_size / 2),
-    _bin_resolution((float)sample_rate / (float)window_size)
+    _bin_resolution((float)sample_rate / (float)window_size),
+    _harmonics(harmonics)
 {
     // includes DC ad Nyquist components and needs to be large enough for intermediate steps
     _freq_bins = (float*)hal.util->malloc_type(sizeof(float) * (window_size), DSP_MEM_REGION);
@@ -71,50 +72,54 @@ DSP::FFTWindowState::~FFTWindowState()
 }
 
 // step 3: find the magnitudes of the complex data
-void DSP::step_cmplx_mag(FFTWindowState* fft, uint16_t start_bin, uint16_t end_bin, uint8_t harmonics, float noise_att_cutoff)
+void DSP::step_cmplx_mag(FFTWindowState* fft, uint16_t start_bin, uint16_t end_bin, float noise_att_cutoff)
 {
     // find the maximum power in the range we are interested in
-    float max_value = 0, max_value2 = 0, max_value3 = 0;
-    uint16_t max_bin2 = 0, max_bin3 = 0;
+    float max_value = 0;
     uint16_t bin_range = (end_bin - start_bin) + 1;
     // calculate highest two peaks in the range of interest. we cannot simply find the
     // maximum in two halves since the primary peak could extend over multiple bins
     // instead move outwards looking for the 3dB points and then search from there
 
     // first find the highest peak
-    vector_max_float(&fft->_freq_bins[start_bin], bin_range, &max_value, &fft->_max_energy_bin);
-    fft->_max_energy_bin += start_bin;
+    vector_max_float(&fft->_freq_bins[start_bin], bin_range, &max_value, &fft->_max_peak._bin);
+    fft->_max_peak._bin += start_bin;
 
     // calculate the width of the peak
-    uint16_t top = 0, bottom = 0;
-    fft->_max_noise_width_hz = find_noise_width(fft, start_bin, end_bin, fft->_max_energy_bin, noise_att_cutoff, top, bottom);
+    uint16_t top = 0, bottom = 0, t = 0, b = 0;
+    fft->_max_peak._noise_width_hz = find_noise_width(fft, start_bin, end_bin, fft->_max_peak._bin, noise_att_cutoff, top, bottom);
 
-    // if requested calculate another harmonic
-    if (harmonics > 1) {
-        // search for peaks above the 3db point
+    // if requested calculate other harmonics. a common feature of dynamic FFTs is "dropouts" where a peak simply amounts
+    // to noise. dropouts can be handled through filtering and other analysis but we deliberately do not do it here - instead
+    // we calculate the top and bottom shoulders with associated frequencies and leave it to the GyroFFT library to determine
+    // which peak we actually want
+    if (fft->_harmonics > 1) {
+        // search for peaks above the cutoff point
         if (top < end_bin) {
-            vector_max_float(&fft->_freq_bins[top], end_bin - top + 1, &max_value2, &max_bin2);
+            float top_max_value = 0;
+            uint16_t top_max_bin = 0;
+
+            vector_max_float(&fft->_freq_bins[top], end_bin - top + 1, &top_max_value, &top_max_bin);
+            top_max_bin += top;
+            fft->_upper_shoulder_peak._bin = top_max_bin;
+            fft->_upper_shoulder_peak._noise_width_hz = find_noise_width(fft, top, end_bin, fft->_upper_shoulder_peak._bin, noise_att_cutoff, t, b);
+        } else {
+            fft->_upper_shoulder_peak._bin = 0;
+            fft->_upper_shoulder_peak._noise_width_hz = 0;
         }
-        max_bin2 += top;
         // search for peaks below the 3db point
         if (bottom > start_bin) {
-            vector_max_float(&fft->_freq_bins[start_bin], bottom - start_bin + 1, &max_value3, &max_bin3);
-        }
-        max_bin3 += start_bin;
+            float bottom_max_value = 0;
+            uint16_t bottom_max_bin = 0;
 
-        // pick the highest
-        if (fft->_freq_bins[max_bin2] > fft->_freq_bins[max_bin3]) {
-            fft->_second_energy_bin = max_bin2;
-            // calculate the noise width of the second bin
-            fft->_second_noise_width_hz = find_noise_width(fft, top, end_bin, fft->_second_energy_bin, noise_att_cutoff, top, bottom);
+            vector_max_float(&fft->_freq_bins[start_bin], bottom - start_bin + 1, &bottom_max_value, &bottom_max_bin);
+            bottom_max_bin += start_bin;
+            fft->_lower_shoulder_peak._bin = bottom_max_bin;
+            fft->_lower_shoulder_peak._noise_width_hz = find_noise_width(fft, start_bin, bottom, fft->_lower_shoulder_peak._bin, noise_att_cutoff, t, b);
         } else {
-            fft->_second_energy_bin = max_bin3;
-            // calculate the noise width of the second bin
-            fft->_second_noise_width_hz = find_noise_width(fft, start_bin, bottom, fft->_second_energy_bin, noise_att_cutoff, top, bottom);
+            fft->_lower_shoulder_peak._bin = 0;
+            fft->_lower_shoulder_peak._noise_width_hz = 0;
         }
-    } else {
-        fft->_second_energy_bin = 0;
-        fft->_second_noise_width_hz = 0;
     }
 
     // scale the power to account for the input window
@@ -124,36 +129,33 @@ void DSP::step_cmplx_mag(FFTWindowState* fft, uint16_t start_bin, uint16_t end_b
 // calculate the noise width of a peak based on the input parameters
 float DSP::find_noise_width(FFTWindowState* fft, uint16_t start_bin, uint16_t end_bin, uint16_t max_energy_bin, float cutoff, uint16_t& peak_top, uint16_t& peak_bottom) const
 {
-    peak_top = peak_bottom = start_bin;
-
-    if (max_energy_bin == 0) {
-        return  fft->_bin_resolution;
-    }
-
-    if (max_energy_bin == fft->_bin_count) {
-        peak_top = peak_bottom = fft->_bin_count;
-        return  fft->_bin_resolution;
-    }
+    // max_energy_bin is guaranteed to be between start_bin and end_bin
+    peak_top = end_bin;
+    peak_bottom = start_bin;
 
     // calculate the width of the peak
     float noise_width_hz = 1;
 
     // -attenuation/2 dB point above the center bin
-    for (uint16_t b = max_energy_bin + 1; b <= end_bin; b++) {
-        if (fft->_freq_bins[b] < fft->_freq_bins[max_energy_bin] * cutoff) {
-            // we assume that the 3dB point is in the middle of the final shoulder bin
-            noise_width_hz += (b - max_energy_bin - 0.5f);
-            peak_top = b;
-            break;
+    if (max_energy_bin < end_bin) {
+        for (uint16_t b = max_energy_bin + 1; b <= end_bin; b++) {
+            if (fft->_freq_bins[b] < fft->_freq_bins[max_energy_bin] * cutoff) {
+                // we assume that the 3dB point is in the middle of the final shoulder bin
+                noise_width_hz += (b - max_energy_bin - 0.5f);
+                peak_top = b;
+                break;
+            }
         }
     }
     // -attenuation/2 dB point below the center bin
-    for (uint16_t b = max_energy_bin - 1; b >= start_bin; b--) {
-        if (fft->_freq_bins[b] < fft->_freq_bins[max_energy_bin] * cutoff) {
-            // we assume that the 3dB point is in the middle of the final shoulder bin
-            noise_width_hz += (max_energy_bin - b - 0.5f);
-            peak_bottom = b;
-            break;
+    if (max_energy_bin > start_bin) {
+        for (uint16_t b = max_energy_bin - 1; b >= start_bin; b--) {
+            if (fft->_freq_bins[b] < fft->_freq_bins[max_energy_bin] * cutoff) {
+                // we assume that the 3dB point is in the middle of the final shoulder bin
+                noise_width_hz += (max_energy_bin - b - 0.5f);
+                peak_bottom = b;
+                break;
+            }
         }
     }
     noise_width_hz *= fft->_bin_resolution;
@@ -164,26 +166,23 @@ float DSP::find_noise_width(FFTWindowState* fft, uint16_t start_bin, uint16_t en
 // step 4: find the bin with the highest energy and interpolate the required frequency
 uint16_t DSP::step_calc_frequencies(FFTWindowState* fft, uint16_t start_bin, uint16_t end_bin)
 {
-    if (is_zero(fft->_freq_bins[fft->_max_energy_bin])) {
-        fft->_max_bin_freq = start_bin * fft->_bin_resolution;
-    } else {
-        // It turns out that Jain is pretty good and works with only magnitudes, but Candan is significantly better
-        // if you have access to the complex values and Quinn is a little better still. Quinn is computationally
-        // more expensive, but compared to the overall FFT cost seems worth it.
-        fft->_max_bin_freq = (fft->_max_energy_bin + calculate_quinns_second_estimator(fft, fft->_rfft_data, fft->_max_energy_bin)) * fft->_bin_resolution;
+    fft->_max_peak._freq_hz = calc_frequency(fft, start_bin, fft->_max_peak._bin);
+    fft->_upper_shoulder_peak._freq_hz = calc_frequency(fft, start_bin, fft->_upper_shoulder_peak._bin);
+    fft->_lower_shoulder_peak._freq_hz = calc_frequency(fft, start_bin, fft->_lower_shoulder_peak._bin);
+    return fft->_max_peak._bin;
+}
+
+// calculate a single frequency
+uint16_t DSP::calc_frequency(FFTWindowState* fft, uint16_t start_bin, uint16_t peak_bin)
+{
+    if (is_zero(fft->_freq_bins[peak_bin])) {
+        return start_bin * fft->_bin_resolution;
     }
 
-    // calculate second frequency as required
-    if (fft->_second_energy_bin > 0) {
-        // find second highest bin frequency
-        if (is_zero(fft->_freq_bins[fft->_second_energy_bin])) {
-            fft->_second_bin_freq = start_bin * fft->_bin_resolution;
-        } else {
-            fft->_second_bin_freq = (fft->_second_energy_bin + calculate_quinns_second_estimator(fft, fft->_rfft_data, fft->_second_energy_bin)) * fft->_bin_resolution;
-        }
-    }
-
-    return fft->_max_energy_bin;
+    // It turns out that Jain is pretty good and works with only magnitudes, but Candan is significantly better
+    // if you have access to the complex values and Quinn is a little better still. Quinn is computationally
+    // more expensive, but compared to the overall FFT cost seems worth it.
+    return (peak_bin + calculate_quinns_second_estimator(fft, fft->_rfft_data, peak_bin)) * fft->_bin_resolution;
 }
 
 // Interpolate center frequency using https://dspguru.com/dsp/howtos/how-to-interpolate-fft-peak/

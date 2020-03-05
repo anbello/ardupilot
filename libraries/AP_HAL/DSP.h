@@ -23,57 +23,68 @@
 #include "AP_HAL_Namespace.h"
 
 #define DSP_MEM_REGION AP_HAL::Util::MEM_FAST
+// Maximum tolerated number of cycles with missing signal
+#define FFT_MAX_MISSED_UPDATES 5
 
 class AP_HAL::DSP {
 #if HAL_WITH_DSP
 public:
     typedef float* FFTSampleWindow;
+
+    struct FrequencyPeak {
+        // estimate of FFT peak frequency
+        float _freq_hz;
+        // FFT bin with maximum energy
+        uint16_t _bin;
+        // width of the peak
+        float _noise_width_hz;
+    };
+
     class FFTWindowState {
     public:
+
         // frequency width of a FFT bin
         const float _bin_resolution;
         // number of FFT bins
         const uint16_t _bin_count;
         // size of the FFT window
         const uint16_t _window_size;
+        // number of harmonics of interest
+        const uint8_t _harmonics;
         // FFT data
         float* _freq_bins;
         // intermediate real FFT data
         float* _rfft_data;
-        // estimate of FFT peak frequency
-        float _max_bin_freq;
-        // bin with maximum energy
-        uint16_t _max_energy_bin;
-        // width of the max energy peak
-        float _max_noise_width_hz;
-        // estimate of FFT second peak frequency
-        float _second_bin_freq;
-        // bin with second-most energy
-        uint16_t _second_energy_bin;
-        // width of the second energy peak
-        float _second_noise_width_hz;
+        // highest peak
+        FrequencyPeak _max_peak;
+        // lower shoulder peak
+        FrequencyPeak _lower_shoulder_peak;
+        // upper shoulder peak
+        FrequencyPeak _upper_shoulder_peak;
         // Hanning window for incoming samples, see https://en.wikipedia.org/wiki/Window_function#Hann_.28Hanning.29_window
         float* _hanning_window;
         // Use in calculating the PS of the signal [Heinz] equations (20) & (21)
         float _window_scale;
 
         virtual ~FFTWindowState();
-        FFTWindowState(uint16_t window_size, uint16_t sample_rate);
+        FFTWindowState(uint16_t window_size, uint16_t sample_rate, uint8_t harmonics);
     };
     // initialise an FFT instance
-    virtual FFTWindowState* fft_init(uint16_t window_size, uint16_t sample_rate) = 0;
+    virtual FFTWindowState* fft_init(uint16_t window_size, uint16_t sample_rate, uint8_t harmonics) = 0;
     // start an FFT analysis
     virtual void fft_start(FFTWindowState* state, const float* samples, uint16_t buffer_index, uint16_t buffer_size) = 0;
     // perform remaining steps of an FFT analysis
-    virtual uint16_t fft_analyse(FFTWindowState* state, uint16_t start_bin, uint16_t end_bin, uint8_t harmonics, float noise_att_cutoff) = 0;
+    virtual uint16_t fft_analyse(FFTWindowState* state, uint16_t start_bin, uint16_t end_bin, float noise_att_cutoff) = 0;
 
 protected:
     // step 3: find the magnitudes of the complex data
-    void step_cmplx_mag(FFTWindowState* fft, uint16_t start_bin, uint16_t end_bin, uint8_t harmonics, float noise_att_cutoff);
+    void step_cmplx_mag(FFTWindowState* fft, uint16_t start_bin, uint16_t end_bin, float noise_att_cutoff);
     // calculate the noise width of a peak based on the input parameters
     float find_noise_width(FFTWindowState* fft, uint16_t start_bin, uint16_t end_bin, uint16_t max_energy_bin, float cutoff, uint16_t& peak_top, uint16_t& peak_bottom) const;
     // step 4: find the bin with the highest energy and interpolate the required frequency
     uint16_t step_calc_frequencies(FFTWindowState* fft, uint16_t start_bin, uint16_t end_bin);
+    // calculate a single frequency
+    uint16_t calc_frequency(FFTWindowState* fft, uint16_t start_bin, uint16_t peak_bin);
     // find the maximum value in an vector of floats
     virtual void vector_max_float(const float* vin, uint16_t len, float* max_value, uint16_t* max_index) const = 0;
     // multiple an vector of floats by a scale factor
