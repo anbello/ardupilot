@@ -107,7 +107,9 @@ const AP_Scheduler::Task AP_Vehicle::scheduler_tasks[] = {
     SCHED_TASK_CLASS(AP_RunCam,    &vehicle.runcam,         update,                   50, 50),
 #endif
 #if HAL_GYROFFT_ENABLED
+    // reducing this to 10us causes gyro samples to be missed
     SCHED_TASK_CLASS(AP_GyroFFT,   &vehicle.gyro_fft,       sample_gyros,      LOOP_RATE, 50),
+    SCHED_TASK_CLASS(AP_GyroFFT,   &vehicle.gyro_fft,       push_gyro_frame,         400, 50),
     SCHED_TASK_CLASS(AP_GyroFFT,   &vehicle.gyro_fft,       update_parameters,         1, 50),
 #endif
 };
