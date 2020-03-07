@@ -31,7 +31,6 @@
 #include <AP_Math/AP_Math.h>
 #include <AP_InertialSensor/AP_InertialSensor.h>
 #include <Filter/LowPassFilter.h>
-#include <Filter/LowPassFilter2p.h>
 
 #define DEBUG_FFT   0
 
@@ -224,7 +223,7 @@ private:
     // smoothing filter on the frequency fit
     LowPassFilterFloat _harmonic_fit_filter[XYZ_AXIS_COUNT];
     // smoothing filter on the energy fit
-    LowPassFilter2pFloat _harmonic_ratio_filter[XYZ_AXIS_COUNT];
+    LowPassFilterFloat _harmonic_ratio_filter[XYZ_AXIS_COUNT];
 
     // configured sampling rate
     uint16_t _fft_sampling_rate_hz;
