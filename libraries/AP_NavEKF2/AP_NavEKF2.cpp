@@ -1711,11 +1711,11 @@ void NavEKF2::writeDefaultAirSpeed(float airspeed)
  * vel : velocity in NED (m)
  * timeStamp_ms : system time the measurement was taken, not the time it was received (mSec)
 */
-void NavEKF2::writeVisionSpeed(const Vector3f &vel, uint32_t timeStamp_ms)
+void NavEKF2::writeExtNavVelData(const Vector3f &vel, uint32_t timeStamp_ms)
 {
     if (core) {
         for (uint8_t i=0; i<num_cores; i++) {
-            core[i].writeVisionSpeed(vel, timeStamp_ms);
+            core[i].writeExtNavVelData(vel, timeStamp_ms);
         }
     }
 }

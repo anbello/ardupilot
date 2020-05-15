@@ -1016,7 +1016,7 @@ void NavEKF2_core::writeDefaultAirSpeed(float airspeed)
     defaultAirSpeed = airspeed;
 }
 
-void NavEKF2_core::writeVisionSpeed(const Vector3f &vel, uint32_t timeStamp_ms)
+void NavEKF2_core::writeExtNavVelData(const Vector3f &vel, uint32_t timeStamp_ms)
 {
     if ((timeStamp_ms - visionSpeedMeasTime_ms) < 70) {
         return;
