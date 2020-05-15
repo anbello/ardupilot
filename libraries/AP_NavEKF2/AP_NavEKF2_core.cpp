@@ -110,7 +110,7 @@ bool NavEKF2_core::setup_core(uint8_t _imu_index, uint8_t _core_index)
     if(!storedOutput.init(imu_buffer_length)) {
         return false;
     }
-    if(!storedVisionSpeed.init(OBS_BUFFER_LENGTH)) {
+    if(!storedExtNavVel.init(OBS_BUFFER_LENGTH)) {
        return false;
     }
 
@@ -340,11 +340,11 @@ void NavEKF2_core::InitialiseVariables()
     extNavUsedForPos = false;
     extNavYawResetRequest = false;
 
-    memset(&visionSpeedNew, 0, sizeof(visionSpeedNew));
-    memset(&visionSpeedDelayed, 0, sizeof(visionSpeedDelayed));
-    visionSpeedToFuse = false;
-    visionSpeedMeasTime_ms = 0;
-    useVisVertVel = false;
+    memset(&extNavVelNew, 0, sizeof(extNavVelNew));
+    memset(&extNavVelDelayed, 0, sizeof(extNavVelDelayed));
+    extNavVelToFuse = false;
+    extNavVelMeasTime_ms = 0;
+    useExtNavVertVel = false;
 
     // zero data buffers
     storedIMU.reset();
@@ -355,7 +355,7 @@ void NavEKF2_core::InitialiseVariables()
     storedOutput.reset();
     storedRangeBeacon.reset();
     storedExtNav.reset();
-    storedVisionSpeed.reset();
+    storedExtNavVel.reset();
 
     // now init mag variables
     yawAlignComplete = false;

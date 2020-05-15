@@ -1018,17 +1018,17 @@ void NavEKF2_core::writeDefaultAirSpeed(float airspeed)
 
 void NavEKF2_core::writeExtNavVelData(const Vector3f &vel, uint32_t timeStamp_ms)
 {
-    if ((timeStamp_ms - visionSpeedMeasTime_ms) < 70) {
+    if ((timeStamp_ms - extNavVelMeasTime_ms) < 70) {
         return;
     } else {
-        visionSpeedMeasTime_ms = timeStamp_ms;
+        extNavVelMeasTime_ms = timeStamp_ms;
     }
-    useVisVertVel = true;
-    visionSpeedNew.vel = vel;
+    useExtNavVertVel = true;
+    extNavVelNew.vel = vel;
     // Correct for the average intersampling delay due to the filter updaterate
     timeStamp_ms -= localFilterTimeStep_ms/2;
     // Prevent time delay exceeding age of oldest IMU data in the buffer
     timeStamp_ms = MAX(timeStamp_ms,imuDataDelayed.time_ms);
-    visionSpeedNew.time_ms = timeStamp_ms;
-    storedVisionSpeed.push(visionSpeedNew);
+    extNavVelNew.time_ms = timeStamp_ms;
+    storedExtNavVel.push(extNavVelNew);
 }
