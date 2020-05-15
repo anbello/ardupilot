@@ -566,7 +566,7 @@ public:
     virtual void set_alt_measurement_noise(float noise) {};
     
     // Write velocity data from an external navigation system
-    virtual void writeVisionSpeed(const Vector3f &vel, uint32_t timeStamp_ms) { }
+    virtual void writeExtNavVelData(const Vector3f &vel, uint32_t timeStamp_ms) { }
 
     // allow threads to lock against AHRS update
     HAL_Semaphore &get_semaphore(void) {
