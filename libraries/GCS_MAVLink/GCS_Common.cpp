@@ -3003,7 +3003,7 @@ void GCS_MAVLINK::handle_vision_speed_estimate(const mavlink_message_t &msg)
     mavlink_msg_vision_speed_estimate_decode(&msg, &m);
     const Vector3f vel = {m.x, m.y, m.z};
     uint32_t timestamp_ms = correct_offboard_timestamp_usec_to_ms(m.usec, PAYLOAD_SIZE(chan, VISION_SPEED_ESTIMATE));
-    visual_odom->handle_vision_speed_estimate(m.usec, timestamp_ms, vel);
+    visual_odom->handle_vision_speed_estimate(m.usec, timestamp_ms, vel, m.reset_counter);
 #endif
 }
 
