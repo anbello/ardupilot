@@ -74,7 +74,7 @@ void AP_VisualOdom_Backend::handle_vision_position_delta_msg(const mavlink_messa
 
 void AP_VisualOdom_Backend::handle_vision_speed_estimate(uint64_t remote_time_us, uint32_t time_ms, const Vector3f &vel)
 {
-    AP::ahrs().writeVisionSpeed(vel, time_ms);
+    AP::ahrs().writeExtNavVelData(vel, time_ms);
 
     // record time for health monitoring
     _last_update_ms = AP_HAL::millis();
