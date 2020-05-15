@@ -81,7 +81,7 @@ public:
     
     // general purpose methods to consume velocity estimate data and send to EKF
     // velocity in NED meters per second
-    void handle_vision_speed_estimate(uint64_t remote_time_us, uint32_t time_ms, const Vector3f &vel);
+    void handle_vision_speed_estimate(uint64_t remote_time_us, uint32_t time_ms, const Vector3f &vel, uint8_t reset_counter);
 
     // calibrate camera attitude to align with vehicle's AHRS/EKF attitude
     void align_sensor_to_vehicle();

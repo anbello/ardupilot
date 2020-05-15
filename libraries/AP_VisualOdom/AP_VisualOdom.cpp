@@ -178,7 +178,7 @@ void AP_VisualOdom::handle_vision_position_estimate(uint64_t remote_time_us, uin
     }
 }
 
-void AP_VisualOdom::handle_vision_speed_estimate(uint64_t remote_time_us, uint32_t time_ms, const Vector3f &vel)
+void AP_VisualOdom::handle_vision_speed_estimate(uint64_t remote_time_us, uint32_t time_ms, const Vector3f &vel, uint8_t reset_counter)
 {
     // exit immediately if not enabled
     if (!enabled()) {
@@ -187,7 +187,7 @@ void AP_VisualOdom::handle_vision_speed_estimate(uint64_t remote_time_us, uint32
 
     // call backend
     if (_driver != nullptr) {
-        _driver->handle_vision_speed_estimate(remote_time_us, time_ms, vel);
+        _driver->handle_vision_speed_estimate(remote_time_us, time_ms, vel, reset_counter);
     }
 }
 
