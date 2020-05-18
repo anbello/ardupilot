@@ -344,6 +344,13 @@ public:
     void writeExtNavData(const Vector3f &pos, const Quaternion &quat, float posErr, float angErr, uint32_t timeStamp_ms, uint16_t delay_ms, uint32_t resetTime_ms);
 
     /*
+     * Write velocity data from an external navigation system
+     * vel : velocity in NED (m)
+     * timeStamp_ms : system time the measurement was taken, not the time it was received (mSec)
+     */
+    void writeExtNavVelData(const Vector3f &vel, uint32_t timeStamp_ms);
+
+    /*
       check if switching lanes will reduce the normalised
       innovations. This is called when the vehicle code is about to
       trigger an EKF failsafe, and it would like to avoid that by
@@ -369,12 +376,6 @@ public:
     // log debug data for yaw estimator
     // return false if data not available
     bool getDataEKFGSF(int8_t instance, float &yaw_composite, float &yaw_composite_variance, float yaw[N_MODELS_EKFGSF], float innov_VN[N_MODELS_EKFGSF], float innov_VE[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF]) const;
-
-    /* Write velocity data from an external navigation system
-     * vel : velocity in NED (m)
-     * timeStamp_ms : system time the measurement was taken, not the time it was received (mSec)
-    */
-    void writeExtNavVelData(const Vector3f &vel, uint32_t timeStamp_ms);
 
 private:
     uint8_t num_cores; // number of allocated cores

@@ -47,9 +47,7 @@ void NavEKF2_core::ResetVelocity(void)
             velTimeout = false;
             lastVelPassTime_ms = imuSampleTime_ms;
         } else if (imuSampleTime_ms - extNavVelMeasTime_ms < 250) {
-            stateStruct.velocity.x = extNavVelNew.vel.x;
-            stateStruct.velocity.y = extNavVelNew.vel.y;
-            stateStruct.velocity.z = extNavVelNew.vel.z;
+            stateStruct.velocity = extNavVelNew.vel;
             P[4][4] = P[3][3] = sq(frontend->_gpsHorizVelNoise);
             P[5][5] = sq(frontend->_gpsVertVelNoise);
             velTimeout = false;

@@ -1020,9 +1020,9 @@ void NavEKF2_core::writeExtNavVelData(const Vector3f &vel, uint32_t timeStamp_ms
 {
     if ((timeStamp_ms - extNavVelMeasTime_ms) < 70) {
         return;
-    } else {
-        extNavVelMeasTime_ms = timeStamp_ms;
     }
+
+    extNavVelMeasTime_ms = timeStamp_ms;
     useExtNavVertVel = true;
     extNavVelNew.vel = vel;
     // Correct for the average intersampling delay due to the filter updaterate
