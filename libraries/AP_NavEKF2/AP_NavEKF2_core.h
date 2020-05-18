@@ -935,7 +935,6 @@ private:
     uint32_t lastGpsAidBadTime_ms;  // time in msec gps aiding was last detected to be bad
     float posDownAtTakeoff;         // flight vehicle vertical position sampled at transition from on-ground to in-air and used as a reference (m)
     bool useGpsVertVel;             // true if GPS vertical velocity should be used
-    bool useExtNavVertVel;
     float yawResetAngle;            // Change in yaw angle due to last in-flight yaw reset in radians. A positive value means the yaw angle has increased.
     uint32_t lastYawReset_ms;       // System time at which the last yaw reset occurred. Returned by getLastYawResetAngle
     Vector3f tiltErrVec;            // Vector of most recent attitude error correction from Vel,Pos fusion
@@ -1189,8 +1188,9 @@ private:
     obs_ring_buffer_t<ext_nav_vel_elements> storedExtNavVel; // external navigation velocity data buffer
     ext_nav_vel_elements extNavVelNew;                       // external navigation velocity data at the current time horizon
     ext_nav_vel_elements extNavVelDelayed;                   // external navigation velocity data at the fusion time horizon
-    uint32_t extNavVelMeasTime_ms;                            // time external navigation velocity measurements were accepted for input to the data buffer (msec)
-    bool extNavVelToFuse;                                     // true when there is new external navigation velocity to fuse
+    uint32_t extNavVelMeasTime_ms;                           // time external navigation velocity measurements were accepted for input to the data buffer (msec)
+    bool extNavVelToFuse;                                    // true when there is new external navigation velocity to fuse
+    bool useExtNavVel;                                       // true external navigation velocity should be used
 
     // flags indicating severe numerical errors in innovation variance calculation for different fusion operations
     struct {

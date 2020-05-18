@@ -228,7 +228,7 @@ void NavEKF2_core::ResetHeight(void)
     // Check that GPS vertical velocity data is available and can be used
     if (inFlight && !gpsNotAvailable && frontend->_fusionModeGPS == 0 && !frontend->inhibitGpsVertVelUse) {
         stateStruct.velocity.z =  gpsDataNew.vel.z;
-    } else if (inFlight && useExtNavVertVel) {
+    } else if (inFlight && useExtNavVel) {
         stateStruct.velocity.z = extNavVelNew.vel.z;
     } else if (onGround) {
         stateStruct.velocity.z = 0.0f;
@@ -686,7 +686,7 @@ void NavEKF2_core::FuseVelPosNED()
             // test velocity measurements
             uint8_t imax = 2;
             // Don't fuse vertical velocity observations if inhibited by the user or if we are using synthetic data
-            if (!useExtNavVertVel && (frontend->_fusionModeGPS > 0 || PV_AidingMode != AID_ABSOLUTE || frontend->inhibitGpsVertVelUse)) {
+            if (!useExtNavVel && (frontend->_fusionModeGPS > 0 || PV_AidingMode != AID_ABSOLUTE || frontend->inhibitGpsVertVelUse)) {
                 imax = 1;
             }
             float innovVelSumSq = 0; // sum of squares of velocity innovations
@@ -770,7 +770,7 @@ void NavEKF2_core::FuseVelPosNED()
         if (fuseVelData && velHealth) {
             fuseData[0] = true;
             fuseData[1] = true;
-            if (useGpsVertVel || useExtNavVertVel) {
+            if (useGpsVertVel || useExtNavVel) {
                 fuseData[2] = true;
             }
             tiltErrVec.zero();
@@ -1096,7 +1096,7 @@ void NavEKF2_core::selectHeightForFusion()
 
     // If we haven't fused height data for a while, then declare the height data as being timed out
     // set timeout period based on whether we have vertical GPS velocity available to constrain drift
-    hgtRetryTime_ms = ((useGpsVertVel || useExtNavVertVel) && !velTimeout) ? frontend->hgtRetryTimeMode0_ms : frontend->hgtRetryTimeMode12_ms;
+    hgtRetryTime_ms = ((useGpsVertVel || useExtNavVel) && !velTimeout) ? frontend->hgtRetryTimeMode0_ms : frontend->hgtRetryTimeMode12_ms;
     if (imuSampleTime_ms - lastHgtPassTime_ms > hgtRetryTime_ms) {
         hgtTimeout = true;
     } else {
