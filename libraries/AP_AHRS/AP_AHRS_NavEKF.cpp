@@ -1475,10 +1475,10 @@ void AP_AHRS_NavEKF::writeDefaultAirSpeed(float airspeed)
 }
 
 // Write velocity data from an external navigation system
-void AP_AHRS_NavEKF::writeExtNavVelData(const Vector3f &vel, uint32_t timeStamp_ms)
+void AP_AHRS_NavEKF::writeExtNavVelData(const Vector3f &vel, uint32_t timeStamp_ms, uint16_t delay_ms)
 {
 #if HAL_NAVEKF2_AVAILABLE
-    EKF2.writeExtNavVelData(vel, timeStamp_ms);
+    EKF2.writeExtNavVelData(vel, timeStamp_ms, delay_ms);
 #endif
 }
 
