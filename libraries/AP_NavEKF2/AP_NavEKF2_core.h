@@ -334,6 +334,14 @@ public:
     */
     void writeExtNavData(const Vector3f &pos, const Quaternion &quat, float posErr, float angErr, uint32_t timeStamp_ms, uint16_t delay_ms, uint32_t resetTime_ms);
 
+    /*
+     * Write velocity data from an external navigation system
+     * vel : velocity in NED (m)
+     * timeStamp_ms : system time the measurement was taken, not the time it was received (mSec)
+     * delay_ms   : average delay of external nav system measurements relative to inertial measurements
+     */
+    void writeExtNavVelData(const Vector3f &vel, uint32_t timeStamp_ms, uint16_t delay_ms);
+
     // return true when external nav data is also being used as a yaw observation
     bool isExtNavUsedForYaw(void);
 
@@ -346,13 +354,6 @@ public:
 
     // request a reset the yaw to the EKF-GSF value
     void EKFGSF_requestYawReset();
-    
-    /*
-     * Write velocity data from an external navigation system
-     * vel : velocity in NED (m)
-     * timeStamp_ms : system time the measurement was taken, not the time it was received (mSec)
-    */
-    void writeExtNavVelData(const Vector3f &vel, uint32_t timeStamp_ms);
 
 private:
     EKFGSF_yaw *yawEstimator;
